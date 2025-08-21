@@ -1,0 +1,79 @@
+<icecast>
+    <location>Tokyo, Japan</location>
+    <admin>admin@hiresradio.local</admin>
+
+    <limits>
+        <clients>100</clients>
+        <sources>1</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>10</source-timeout>
+        <burst-on-connect>1</burst-on-connect>
+        <burst-size>65535</burst-size>
+    </limits>
+
+    <authentication>
+        <source-password>hackme</source-password>
+        <relay-password>hackme</relay-password>
+        <admin-user>admin</admin-user>
+        <admin-password>hackme</admin-password>
+    </authentication>
+
+    <hostname>localhost</hostname>
+
+    <http-headers>
+        <header name="Access-Control-Allow-Origin" value="*" />
+    </http-headers>
+
+    <listen-socket>
+        <port>8000</port>
+    </listen-socket>
+
+    <mount>
+        <mount-name>/stream.ogg</mount-name>
+        <username>source</username>
+        <password>hackme</password>
+        <max-listeners>100</max-listeners>
+        <dump-file>/tmp/dump-example1.flac</dump-file>
+        <burst-size>65536</burst-size>
+        <fallback-mount>/silence.flac</fallback-mount>
+        <fallback-override>1</fallback-override>
+        <fallback-when-full>1</fallback-when-full>
+        <intro>/intro.flac</intro>
+        <hidden>0</hidden>
+        <no-yp>1</no-yp>
+        <on-connect>/bin/echo</on-connect>
+        <on-disconnect>/bin/echo</on-disconnect>
+        <max-listener-duration>3600</max-listener-duration>
+        <charset>UTF-8</charset>
+        <mp3-metadata-interval>8192</mp3-metadata-interval>
+    </mount>
+
+    <fileserve>1</fileserve>
+
+    <paths>
+        <basedir>/usr/share/icecast2</basedir>
+        <logdir>/var/log/icecast2</logdir>
+        <webroot>/usr/share/icecast2/web</webroot>
+        <adminroot>/usr/share/icecast2/admin</adminroot>
+        <alias source="/" destination="/status.xsl"/>
+        <pidfile>/var/log/icecast2/icecast.pid</pidfile>
+    </paths>
+
+    <logging>
+        <accesslog>access.log</accesslog>
+        <errorlog>error.log</errorlog>
+        <loglevel>3</loglevel>
+        <logsize>10000</logsize>
+        <logarchive>1</logarchive>
+    </logging>
+
+    <security>
+        <chroot>0</chroot>
+        <changeowner>
+            <user>radio</user>
+            <group>radio</group>
+        </changeowner>
+    </security>
+</icecast>

@@ -314,3 +314,120 @@ export default function Player({ url }) {
 このサイトは **①完全無料の招待制ファン向け** にしたいですか？
 それとも **②課金（サブスク/寄付）モデル** を組み込みたいですか？
 
+
+
+---
+ ⏺ CORS対応のためのコード修正
+
+  1. Icecast設定にCORSヘッダー追加
+
+  <!-- icecast.xml の <icecast> セクション内に追加 -->
+  <http-headers>
+      <header name="Access-Control-Allow-Origin" value="*" />
+      <header name="Access-Control-Allow-Methods" value="GET, POST, OPTIONS" />
+      <header name="Access-Control-Allow-Headers" value="Origin, 
+  X-Requested-With, Content-Type, Accept, Authorization, Cache-Control" />
+  </http-headers>
+
+  2. または、Webサーバー経由でプロキシ設定
+
+  // server.js に追加
+  app.get('/stream', (req, res) => {
+      const streamUrl = 'http://localhost:8000/stream.flac';
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'audio/flac');
+
+      const http = require('http');
+      http.get(streamUrl, (streamRes) => {
+          streamRes.pipe(res);
+      });
+  });
+
+  3. フロントエンドのURL変更
+
+  // index.html の STREAM_URL を変更
+  const STREAM_URL = '/stream';  // プロキシ経由の場合
+
+  どちらかの方法でCORSエラーを解決できます。
+
+> １の方法で修正して。\
+  dockerの起動からストリーミングの視聴までのコードを教えて
+
+⏺ 1. Icecast設定にCORSヘッダー追加
+
+  icecast.xml修正
+
+  <icecast>
+      <!-- 既存の設定 -->
+      <location>Tokyo, Japan</location>
+      <admin>admin@hiresradio.local</admin>
+
+      <!-- CORS設定を追加 -->
+      <http-headers>
+          <header name="Access-Control-Allow-Origin" value="*" />
+          <header name="Access-Control-Allow-Methods" value="GET, POST, 
+  OPTIONS" />
+          <header name="Access-Control-Allow-Headers" value="Origin, 
+  X-Requested-With, Content-Type, Accept, Authorization, Cache-Control" />
+      </http-headers>
+
+      <!-- 以下既存設定続行... -->
+      <limits>
+          <clients>100</clients>
+          <!-- ... -->
+      </limits>
+  </icecast>
+
+  2. Docker起動からストリーミング視聴までの手順
+
+  Docker起動
+   Dockerコンテナ再ビルド・再起動
+
+  # コンテナ停止
+  docker-compose down
+
+  # 設定を反映して再ビルド
+  docker-compose build --no-cache hires-radio
+
+  # 起動
+  docker-compose up -d
+
+  Dockerコンテナ再起動
+
+  # 設定を反映（イメージの再ビルドはせずに変更を反映）
+  docker-compose restart hires-radio
+
+  # 状態確認
+  docker-compose ps
+  docker-compose logs hires-radio
+
+
+  CORS設定の確認
+
+  # CORSヘッダーの確認
+  curl -I http://localhost:8000/stream.flac
+
+  # Access-Control-Allow-Origin ヘッダーが出力されるかチェック
+ 
+---
+
+  アクセス方法
+
+  # Web UI
+  open http://localhost:3000
+
+  # 直接ストリーム（確認用）
+  curl -I http://localhost:8000/stream.flac
+
+  # Icecast管理画面
+  open http://localhost:8000/admin/
+  # ユーザー: admin
+  # パスワード: hackme
+
+  ブラウザでの操作
+
+  1. http://localhost:3000 にアクセス
+  2. 「🔊 Listen Live」ボタンをクリック
+  3. 「🔴 LIVE - Synchronized with all listeners」が表示されれば成功
+
+  これでCORSエラーが解決され、ライブストリーミングが視聴できます。

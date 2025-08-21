@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Hi-Res Radio Streaming Server (Icecast2 + Liquidsoap)
+  hires-radio:
+    build: .
+    container_name: hires-radio-streaming
+    ports:
+      - "8000:8000"      # Icecast2 streaming port
+      - "1234:1234"      # Liquidsoap telnet port
+    volumes:
+      - ./programs:/app/programs:ro    # FLAC files (read-only)
+      - ./logs:/var/log/icecast2       # Icecast2 logs
+    restart: unless-stopped
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+    networks:
+      - hires-network
+
+  # Web Interface Server (Node.js)
+  web-server:
+    image: node:18-alpine
+    container_name: hires-radio-web
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    command: sh -c "npm install express && node server.js"
+    depends_on:
+      - hires-radio
+    restart: unless-stopped
+    networks:
+      - hires-network
+
+networks:
+  hires-network:
+    driver: bridge
+
+volumes:
+  programs:
+    driver: local
+  logs:
+    driver: local

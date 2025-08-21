@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLAC Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/libflacjs@4.0.2/dist/libflac.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .player {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .controls {
+            margin: 30px 0;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .progress {
+            margin: 20px 0;
+            display: none;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .time {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        .status.ready {
+            background: #e8f5e8;
+            color: #388e3c;
+        }
+        .status.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        .info {
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="player">
+        <h1>🎵 Hi-Res Radio</h1>
+        <div class="subtitle">Live FLAC Stream · 24bit/96kHz</div>
+        
+        <div class="controls">
+            <button id="playBtn">🔊 Listen Live</button>
+            <button id="stopBtn" disabled>⏹️ Stop</button>
+        </div>
+        
+        <div class="status loading" id="status">Connecting to stream...</div>
+        
+        <div class="info">
+            <div>📻 Live Stream</div>
+            <div>Format: FLAC 24bit/96kHz</div>
+            <div>Quality: Lossless</div>
+            <div>🌐 Synchronized playback</div>
+        </div>
+    </div>
+
+    <script>
+        let audioElement;
+        let isPlaying = false;
+        
+        const playBtn = document.getElementById('playBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+        
+        // Icecast2ストリーミングURL（Ogg FLAC形式）
+        const STREAM_URL = 'http://localhost:8000/stream.ogg';
+
+        function initAudio() {
+            try {
+                status.textContent = 'Ready to connect to live stream';
+                status.className = 'status ready';
+                playBtn.disabled = false;
+            } catch (error) {
+                console.error('Audio initialization failed:', error);
+                status.textContent = 'Error initializing audio: ' + error.message;
+                status.className = 'status error';
+            }
+        }
+
+        function play() {
+            try {
+                // 新しいAudioエレメントを作成
+                audioElement = new Audio(STREAM_URL);
+                
+                // ストリーミング用の設定
+                audioElement.preload = 'none';
+                audioElement.crossOrigin = 'anonymous';
+                
+                status.textContent = 'Connecting to live stream...';
+                status.className = 'status loading';
+                
+                // イベントリスナー設定
+                audioElement.addEventListener('loadstart', () => {
+                    status.textContent = 'Loading stream...';
+                });
+                
+                audioElement.addEventListener('canplay', () => {
+                    status.textContent = '🔴 LIVE - Synchronized with all listeners';
+                    status.className = 'status ready';
+                });
+                
+                audioElement.addEventListener('error', (e) => {
+                    console.error('Stream error:', e);
+                    status.textContent = 'Stream connection failed. Check if Icecast2 is running.';
+                    status.className = 'status error';
+                    playBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    isPlaying = false;
+                });
+                
+                audioElement.addEventListener('ended', () => {
+                    stop();
+                });
+                
+                // ストリーミング開始
+                audioElement.play().then(() => {
+                    isPlaying = true;
+                    playBtn.disabled = true;
+                    stopBtn.disabled = false;
+                }).catch((error) => {
+                    console.error('Play failed:', error);
+                    status.textContent = 'Failed to start playback: ' + error.message;
+                    status.className = 'status error';
+                });
+                
+            } catch (error) {
+                console.error('Play initialization failed:', error);
+                status.textContent = 'Error starting stream: ' + error.message;
+                status.className = 'status error';
+            }
+        }
+
+        function stop() {
+            if (audioElement) {
+                audioElement.pause();
+                audioElement.src = '';
+                audioElement = null;
+            }
+            
+            isPlaying = false;
+            playBtn.disabled = false;
+            stopBtn.disabled = true;
+            
+            status.textContent = 'Stream stopped';
+            status.className = 'status ready';
+        }
+
+        // Event listeners
+        playBtn.addEventListener('click', play);
+        stopBtn.addEventListener('click', stop);
+
+        // Initialize when page loads
+        window.addEventListener('load', initAudio);
+    </script>
+</body>
+</html>
