@@ -9,11 +9,14 @@
             font-family: 'Arial', sans-serif;
             margin: 0;
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+            /* background: url('assets/chikan.jpg') center center / cover no-repeat; */
+            background: url('assets/KYag.gif') center center / cover no-repeat;
+            height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
         .player {
             background: rgba(255, 255, 255, 0.95);
@@ -106,38 +109,49 @@
 </head>
 <body>
     <div class="player">
-        <h1>🎵 Hi-Res Radio</h1>
+        <h1>The Everything For Sale Show</h1>
         <div class="subtitle">Live FLAC Stream · 24bit/96kHz</div>
         
         <div class="controls">
-            <button id="playBtn">🔊 Listen Live</button>
-            <button id="stopBtn" disabled>⏹️ Stop</button>
+            <button id="playBtn">Listen Live</button>
+            <button id="stopBtn" disabled>Stop</button>
         </div>
         
         <div class="status loading" id="status">Connecting to stream...</div>
         
         <div class="info">
-            <div>📻 Live Stream</div>
+            <div>Live Stream</div>
             <div>Format: FLAC 24bit/96kHz</div>
             <div>Quality: Lossless</div>
             <div>🌐 Synchronized playback</div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script>
         let audioElement;
+        let hls;
         let isPlaying = false;
         
         const playBtn = document.getElementById('playBtn');
         const stopBtn = document.getElementById('stopBtn');
         const status = document.getElementById('status');
         
-        // Icecast2ストリーミングURL（Ogg FLAC形式）
-        const STREAM_URL = 'http://localhost:8000/stream.ogg';
+        // デュアル配信URL
+        const OGG_FLAC_URL = 'http://localhost:8000/stream.ogg';  // Chrome/Firefox
+        const HLS_ALAC_URL = 'http://localhost:8081/hls/stream.m3u8';  // Safari
 
         function initAudio() {
             try {
-                status.textContent = 'Ready to connect to live stream';
+                // ブラウザ判定とストリーミング方式決定
+                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+                
+                if (isSafari) {
+                    status.textContent = 'Safari detected - HLS ALAC ready';
+                } else {
+                    status.textContent = '🌐 Chrome/Firefox detected - OGG FLAC ready';
+                }
+                
                 status.className = 'status ready';
                 playBtn.disabled = false;
             } catch (error) {
@@ -149,53 +163,18 @@
 
         function play() {
             try {
-                // 新しいAudioエレメントを作成
-                audioElement = new Audio(STREAM_URL);
-                
-                // ストリーミング用の設定
-                audioElement.preload = 'none';
-                audioElement.crossOrigin = 'anonymous';
+                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
                 
                 status.textContent = 'Connecting to live stream...';
                 status.className = 'status loading';
                 
-                // イベントリスナー設定
-                audioElement.addEventListener('loadstart', () => {
-                    status.textContent = 'Loading stream...';
-                });
-                
-                audioElement.addEventListener('canplay', () => {
-                    status.textContent = '🔴 LIVE - Synchronized with all listeners';
-                    status.className = 'status ready';
-                });
-                
-                audioElement.addEventListener('error', (e) => {
-                    // Stop時のエラーは無視
-                    if (!audioElement || audioElement.src === '') {
-                        return;
-                    }
-                    console.error('Stream error:', e);
-                    status.textContent = 'Stream connection failed. Check if Icecast2 is running.';
-                    status.className = 'status error';
-                    playBtn.disabled = false;
-                    stopBtn.disabled = true;
-                    isPlaying = false;
-                });
-                
-                audioElement.addEventListener('ended', () => {
-                    stop();
-                });
-                
-                // ストリーミング開始
-                audioElement.play().then(() => {
-                    isPlaying = true;
-                    playBtn.disabled = true;
-                    stopBtn.disabled = false;
-                }).catch((error) => {
-                    console.error('Play failed:', error);
-                    status.textContent = 'Failed to start playback: ' + error.message;
-                    status.className = 'status error';
-                });
+                if (isSafari) {
+                    // Safari: HLS ALAC配信
+                    playHLSALAC();
+                } else {
+                    // Chrome/Firefox: OGG FLAC配信
+                    playOggFLAC();
+                }
                 
             } catch (error) {
                 console.error('Play initialization failed:', error);
@@ -203,12 +182,98 @@
                 status.className = 'status error';
             }
         }
+        
+        function playHLSALAC() {
+            audioElement = document.createElement('audio');
+            audioElement.crossOrigin = 'anonymous';
+            
+            if (audioElement.canPlayType('application/vnd.apple.mpegurl')) {
+                // Safari ネイティブHLS
+                audioElement.src = HLS_ALAC_URL;
+                setupAudioEvents('LIVE - HLS ALAC 24bit/96kHz');
+                audioElement.play().then(() => {
+                    isPlaying = true;
+                    playBtn.disabled = true;
+                    stopBtn.disabled = false;
+                }).catch(handlePlayError);
+            } else if (Hls.isSupported()) {
+                // HLS.js fallback
+                hls = new Hls();
+                hls.loadSource(HLS_ALAC_URL);
+                hls.attachMedia(audioElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    setupAudioEvents('🍎 LIVE - HLS ALAC 24bit/96kHz');
+                    audioElement.play().then(() => {
+                        isPlaying = true;
+                        playBtn.disabled = true;
+                        stopBtn.disabled = false;
+                    }).catch(handlePlayError);
+                });
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    console.error('HLS error:', data);
+                    status.textContent = 'HLS ALAC stream failed: ' + data.type;
+                    status.className = 'status error';
+                });
+            }
+        }
+        
+        function playOggFLAC() {
+            audioElement = new Audio(OGG_FLAC_URL);
+            audioElement.preload = 'none';
+            audioElement.crossOrigin = 'anonymous';
+            
+            setupAudioEvents('🌐 LIVE - OGG FLAC 24bit/96kHz');
+            
+            audioElement.play().then(() => {
+                isPlaying = true;
+                playBtn.disabled = true;
+                stopBtn.disabled = false;
+            }).catch(handlePlayError);
+        }
+        
+        function setupAudioEvents(liveMessage) {
+            audioElement.addEventListener('loadstart', () => {
+                status.textContent = 'Loading stream...';
+            });
+            
+            audioElement.addEventListener('canplay', () => {
+                status.textContent = liveMessage;
+                status.className = 'status ready';
+            });
+            
+            audioElement.addEventListener('error', (e) => {
+                if (!audioElement || audioElement.src === '') {
+                    return;
+                }
+                console.error('Stream error:', e);
+                status.textContent = 'Stream connection failed. Check server status.';
+                status.className = 'status error';
+                playBtn.disabled = false;
+                stopBtn.disabled = true;
+                isPlaying = false;
+            });
+            
+            audioElement.addEventListener('ended', () => {
+                stop();
+            });
+        }
+        
+        function handlePlayError(error) {
+            console.error('Play failed:', error);
+            status.textContent = 'Failed to start playback: ' + error.message;
+            status.className = 'status error';
+        }
 
         function stop() {
             if (audioElement) {
                 audioElement.pause();
                 audioElement.src = '';
                 audioElement = null;
+            }
+            
+            if (hls) {
+                hls.destroy();
+                hls = null;
             }
             
             isPlaying = false;

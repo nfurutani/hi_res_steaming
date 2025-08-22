@@ -431,3 +431,42 @@ export default function Player({ url }) {
   3. 「🔴 LIVE - Synchronized with all listeners」が表示されれば成功
 
   これでCORSエラーが解決され、ライブストリーミングが視聴できます。
+
+---
+  HLSへの移行計画 / 要件確認
+
+  現状: Liquidsoap + Icecast2 + Ogg FLAC配信（Chrome対応、Safari非対応）
+  目標: Liquidsoap + HLS + ALAC配信（全ブラウザ対応）
+
+  要件定義
+
+  1. 音質: 24bit/96kHz FLAC品質を維持（絶対に劣化させない）
+  2. 形式: HLS + ALAC codec使用
+  3. コンテナ: fMP4形式
+  4. 対応ブラウザ: Safari + Chrome/Firefox対応
+  5. 同期: 全リスナーが同じタイミングで聴く（真の同時配信）
+  6. 実装方針: 方式1 (fMP4で全ブラウザHLS ALAC)
+
+  技術仕様
+
+  - 入力: FLAC 24bit/96kHz
+  - 出力: HLS ALAC 24bit/96kHz (fMP4コンテナ)
+  - セグメント: 6秒間隔、5セグメント保持
+  - 配信: nginx経由、CORS対応
+
+
+
+
+  ---
+  HLS ALAC fMP4配信が完全に動作しています！
+
+  達成内容
+
+  - ✅ Liquidsoap: FLAC 24bit/96kHz再生
+  - ✅ FIFOパイプ: /tmp/live.fifo 経由でWAV出力
+  - ✅ ffmpeg: ALAC エンコード + fMP4 HLS生成
+  - ✅ HLSファイル: 正常生成（init.mp4 + stream*.m4s）
+
+  現在の構成
+
+  FLAC音源 → Liquidsoap → FIFO(WAV 24bit/96kHz) → ffmpeg → HLS ALAC fMP4

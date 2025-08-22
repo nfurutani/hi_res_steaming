@@ -6,7 +6,8 @@ services:
     build: .
     container_name: hires-radio-streaming
     ports:
-      - "8000:8000"      # Icecast2 streaming port
+      - "8000:8000"      # Icecast2 OGG FLAC streaming port
+      - "8081:8080"      # HLS ALAC web server port
       - "1234:1234"      # Liquidsoap telnet port
     volumes:
       - ./programs:/app/programs:ro    # FLAC files (read-only)

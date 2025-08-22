@@ -1,280 +1,299 @@
 # hi_res_steaming プロジェクト概要
 
 ## プロジェクト目的
-録音番組配信型ハイレゾストリーミングWebアプリケーション
-- 事前録音された1時間番組を24bit/96kHz FLACで配信
-- 番組時間外は自動サインアウト
-- サインイン制限による接続人数管理
-- 世界配信対応（単一サーバー構成）
+デュアルストリーミング対応ハイレゾライブ配信Webアプリケーション
+- 24bit/96kHz FLAC音源のリアルタイム配信
+- Chrome/Firefox: OGG FLAC直接再生
+- Safari: HLS ALAC配信（fMP4セグメント）
+- 全ブラウザ対応の同期ライブストリーミング
+- Docker環境での統合配信システム
 
 ## 技術スタック
 
 ### 音源フォーマット
-- **録音番組**: FLAC 24bit/96kHz（1時間番組、約1.2-1.5GB）
-- **配信フォーマット**: FLAC（無劣化配信）
+- **入力音源**: FLAC 24bit/96kHz
+- **配信フォーマット**: 
+  - Chrome/Firefox: OGG FLAC 24bit/96kHz
+  - Safari: HLS ALAC 24bit/96kHz（fMP4セグメント）
 
-### サーバー構成（東京VPS）
-- **OS**: Ubuntu 22.04 LTS
-- **ストリーミング**: Liquidsoap + Icecast2
-- **認証API**: Node.js + Express
-- **Webサーバー**: Nginx（SSL終端・プロキシ）
-- **データベース**: Supabase（認証・リスナー管理）
+### サーバー構成（Docker環境）
+- **コンテナ化**: Docker + Docker Compose
+- **ストリーミング**: Liquidsoap + Icecast2 + ffmpeg
+- **デュアル配信**: OGG FLAC（Icecast2）+ HLS ALAC（ffmpeg）
+- **FIFO連携**: Liquidsoap → ffmpeg（/tmp/live.fifo）
+- **CORS対応**: Python3 HTTPサーバー（Safari HLS用）
 
 ### フロントエンド
 - **構成**: 純粋HTML + Vanilla JavaScript
-- **認証**: Supabase Auth SDK
-- **UI**: サインイン + mute/unmuteボタン + 番組情報表示
-- **機能**: 地域検出・遅延測定・番組進行状況
+- **ブラウザ検出**: Safari自動判定によるストリーミング方式切り替え
+- **Safari**: HLS.js + ネイティブHLS再生
+- **Chrome/Firefox**: Audio要素による直接OGG FLAC再生
+- **UI**: Listen/Stopボタン + ストリーミング状況表示
 
-### インフラ
-- **VPS**: Vultr Tokyo（4GB/2CPU/1Gbps）月¥3,000
-- **DNS/保護**: Cloudflare（無料版）
-- **SSL証明書**: Let's Encrypt（自動更新）
+### 開発環境
+- **Docker**: コンテナ化による環境統一
+- **ポート構成**: 
+  - 8000: Icecast2（OGG FLAC）
+  - 8081: CORS HTTP Server（HLS ALAC）
+  - 1234: Liquidsoap telnet
+  - 3000: Web Interface
 
 ## アーキテクチャ
 
-### 単一サーバー構成（東京VPS）
+### デュアルストリーミング構成
 ```
-[録音番組 FLAC 24bit/96kHz]
-       │
-       ▼
-[Liquidsoap] ← 番組スケジューラー・FLAC配信
-       │
-       ▼
-[Icecast2] ← 認証付きストリーミング・100人制限
-       │
-       ▼
-[Nginx + SSL] ← リバースプロキシ・静的ファイル配信
-       │
-       ▼
-[世界各地のリスナー] ← サインイン必須・番組終了で自動ログアウト
+[FLAC音源ファイル 24bit/96kHz]
+           │
+           ▼
+[Liquidsoap] ────┬──► [Icecast2] ──► Chrome/Firefox (OGG FLAC)
+                 │
+                 └──► [FIFO pipe] ──► [ffmpeg] ──► [HLS fMP4] ──► Safari (ALAC)
+                                                        │
+                                                        ▼
+                                              [CORS HTTP Server]
 ```
 
-### 認証・管理フロー
+### ブラウザ別配信フロー
 ```
-[Supabase Auth] ← メール認証・JWT発行
-       │
-       ▼
-[Node.js API] ← JWT検証・Icecast認証連携
-       │
-       ▼
-[番組スケジューラー] ← 毎時0分強制ログアウト
-       │
-       ▼
-[リスナー管理DB] ← 接続ログ・地域統計
+Chrome/Firefox:
+FLAC音源 → Liquidsoap → Icecast2 → OGG FLAC → Audio要素
+
+Safari:
+FLAC音源 → Liquidsoap → FIFO pipe → ffmpeg → HLS ALAC → HLS.js/ネイティブHLS
+```
+
+### Docker構成
+```
+hires-radio コンテナ:
+- Liquidsoap（音源管理・デュアル出力）
+- Icecast2（OGG FLAC配信）
+- ffmpeg（FIFO → HLS ALAC変換）
+- Python3 CORS Server（Safari HLS用）
+
+web-server コンテナ:
+- Node.js（Web Interface）
+- 静的ファイル配信
 ```
 
 ## 主要機能
 
-### リスナー機能
-- **メール認証必須サインイン**
-- **同時聴取**: 全員が同じタイミングで同じ番組を聴く
-- **mute/unmuteボタンのみ** のシンプルUI
-- **番組情報表示**: タイトル・進行状況・次回終了時刻
-- **地域検出**: 接続元地域・推定遅延表示
-- **自動サインアウト**: 番組終了時（毎時0分）
+### ブラウザ対応
+- **Safari**: HLS ALAC 24bit/96kHz（fMP4セグメント、6秒間隔）
+- **Chrome/Firefox**: OGG FLAC 24bit/96kHz（直接ストリーミング）
+- **自動検出**: User-Agentによるブラウザ判定と配信方式切り替え
+- **同期再生**: 全ブラウザで同一音源の同期ライブ配信
 
-### 管理機能
-- **接続数制限**: 最大100人同時接続
-- **番組スケジューリング**: 1時間番組の自動再生
-- **統計情報**: リスナー数・地域分布・接続ログ
-- **品質保証**: FLAC 24bit/96kHz無劣化配信
+### 技術機能
+- **デュアルストリーミング**: 単一音源から複数フォーマット同時配信
+- **FIFO連携**: Liquidsoap → ffmpeg リアルタイム変換
+- **CORS対応**: Safari HLS用専用HTTPサーバー
+- **コンテナ統合**: Docker環境での一括管理
 
 ## 実装方法
 
-### Liquidsoap番組スケジューラー
+### Liquidsoap デュアルストリーミング設定
 ```liquidsoap
 #!/usr/bin/liquidsoap
-set("log.file.path", "/var/log/liquidsoap/scheduled.log")
 
-# 番組時間判定
-def get_current_program() = 
-  hour = localtime().tm_hour
-  if hour == 20 then  # 20:00-21:00
-    "/home/radio/programs/main_program.flac"
-  else
-    "" # 番組時間外
-  end
-end
+# ログ設定
+set("log.file.path", "/var/log/icecast2/liquidsoap.log")
+set("log.stdout", true)
+set("init.allow_root", true)
 
-# 番組切り替えハンドラー
-def program_handler()
-  program = get_current_program()
-  if program != "" then
-    single(program)  # 番組再生
-  else
-    # 番組時間外：強制ログアウト実行
-    ignore(process.run("curl -X POST http://localhost:3000/force-logout"))
-    blank()  # 無音
-  end
-end
+# サーバー設定
+set("server.telnet", true)
+set("server.telnet.port", 1234)
 
-# Icecast出力（認証付き）
+# FLACファイルを無限ループで再生
+source = playlist(mode="randomize", reload=1, "/app/programs/")
+source = fallback(track_sensitive=false, [source, blank()])
+
+# デュアル配信: OGG FLAC + ALAC
+# 1. Chrome/Firefox用 OGG FLAC配信（24bit/96kHz）
 output.icecast(
-  %flac(samplerate=96000, channels=2),
-  host="localhost",
-  port=8000,
-  password="hackme",
-  mount="/stream.flac",
-  name="Hi-Res Radio - Scheduled Programs",
-  switch([({0m}, program_handler)])  # 毎分チェック
+    %ogg(%flac(samplerate=96000, channels=2, bits_per_sample=24)),
+    host="localhost",
+    port=8000,
+    password="hackme",
+    mount="/stream.ogg",
+    name="Hi-Res Radio - OGG FLAC",
+    description="24bit/96kHz FLAC Stream for Chrome/Firefox",
+    source
+)
+
+# 2. Safari用 ALAC配信 - FIFO経由でffmpeg処理
+output.file(
+    %wav(stereo=true, channels=2, samplerate=96000, samplesize=24),
+    "/tmp/live.fifo",
+    audio_to_stereo(source)
 )
 ```
 
-### Icecast設定（認証付き）
-```xml
-<icecast>
-    <limits>
-        <clients>105</clients>
-        <sources>1</sources>
-    </limits>
-    <mount>
-        <mount-name>/stream.flac</mount-name>
-        <max-listeners>100</max-listeners>
-        <authentication type="url">
-            <option name="listener_add" value="http://localhost:3000/verify-token"/>
-            <option name="auth_header" value="Authorization"/>
-        </authentication>
-    </mount>
-</icecast>
+### ffmpeg HLS ALAC変換
+```bash
+# FIFO pipeからHLS ALAC配信を生成
+ffmpeg -re -i /tmp/live.fifo -c:a alac -f hls \
+  -hls_segment_type fmp4 -hls_time 6 -hls_list_size 5 \
+  -hls_playlist_type event /var/www/html/hls/stream.m3u8
 ```
 
-### 認証付きフロントエンド
-```html
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <title>Hi-Res Radio - Premium Programs</title>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-</head>
-<body>
-    <!-- サインイン画面 -->
-    <div class="login-screen active">
-        <h1>🎵 Hi-Res Radio</h1>
-        <p>プレミアム 24bit/96kHz 番組配信</p>
-        <form id="signinForm">
-            <input type="email" placeholder="メールアドレス" required>
-            <input type="password" placeholder="パスワード" required>
-            <button type="submit">サインイン</button>
-        </form>
-        <p>📅 番組時間: 毎日20:00-21:00<br>番組終了で自動サインアウト</p>
-    </div>
+### CORS対応HTTPサーバー（Safari用）
+```python
+#!/usr/bin/env python3
+import http.server
+import socketserver
+from http.server import SimpleHTTPRequestHandler
+
+class CORSRequestHandler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Range')
+        super().end_headers()
+
+    def guess_type(self, path):
+        if path.endswith('.m3u8'):
+            return 'application/vnd.apple.mpegurl'
+        elif path.endswith('.m4s'):
+            return 'video/mp4'
+        return super().guess_type(path)
+
+if __name__ == "__main__":
+    PORT = 8080
+    os.chdir('/var/www/html')
+    with socketserver.TCPServer(("", PORT), CORSRequestHandler) as httpd:
+        httpd.serve_forever()
+```
+
+### ブラウザ検出フロントエンド
+```javascript
+// デュアル配信URL
+const OGG_FLAC_URL = 'http://localhost:8000/stream.ogg';  // Chrome/Firefox
+const HLS_ALAC_URL = 'http://localhost:8081/hls/stream.m3u8';  // Safari
+
+function play() {
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     
-    <!-- プレイヤー画面 -->
-    <div class="player-screen">
-        <h1>🎵 Hi-Res Radio</h1>
-        
-        <!-- 番組情報 -->
-        <div class="program-info">
-            <div class="program-title" id="programTitle">Main Program</div>
-            <div class="program-time">📻 Live · FLAC 24bit/96kHz</div>
-            <div class="program-progress">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-            <div class="next-logout">次回サインアウト: 21:00</div>
-        </div>
-        
-        <audio id="stream"></audio>
-        <button id="muteBtn">🔊</button>
-        
-        <!-- 接続情報 -->
-        <div class="connection-info">
-            <div>📍 <span id="userLocation">Detecting...</span></div>
-            <div>⏱️ Delay: <span id="estimatedDelay">~3-8 seconds</span></div>
-            <div>👥 <span id="listenerCount">-/100 listeners</span></div>
-        </div>
-    </div>
+    if (isSafari) {
+        // Safari: HLS ALAC配信
+        playHLSALAC();
+    } else {
+        // Chrome/Firefox: OGG FLAC配信
+        playOggFLAC();
+    }
+}
+
+function playHLSALAC() {
+    audioElement = document.createElement('audio');
     
-    <script>
-        // Supabase認証 + ストリーミング接続
-        // 地域検出・遅延測定・番組進行管理
-    </script>
-</body>
-</html>
+    if (audioElement.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari ネイティブHLS
+        audioElement.src = HLS_ALAC_URL;
+        audioElement.play();
+    } else if (Hls.isSupported()) {
+        // HLS.js fallback
+        hls = new Hls();
+        hls.loadSource(HLS_ALAC_URL);
+        hls.attachMedia(audioElement);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            audioElement.play();
+        });
+    }
+}
+
+function playOggFLAC() {
+    audioElement = new Audio(OGG_FLAC_URL);
+    audioElement.play();
+}
 ```
 
 ## セットアップ手順
 
-### VPS環境構築（5分セットアップ）
+### Docker環境構築
 ```bash
-#!/bin/bash
-# setup-hires-radio.sh
+# 1. リポジトリクローン
+git clone https://github.com/your-repo/hi_res_steaming.git
+cd hi_res_steaming
 
-# 1. システム更新
-sudo apt-get update && sudo apt-get upgrade -y
+# 2. FLAC音源ファイル配置
+mkdir -p programs
+cp your_music.flac programs/
 
-# 2. 必要パッケージインストール
-sudo apt-get install -y liquidsoap icecast2 nginx nodejs npm certbot
+# 3. Docker環境起動
+docker-compose up -d
 
-# 3. ユーザー・ディレクトリ作成
-sudo useradd -m radio
-sudo -u radio mkdir -p /home/radio/{programs,logs}
-
-# 4. PM2インストール（Node.js管理用）
-sudo npm install -g pm2
-
-# 5. ファイアウォール設定
-sudo ufw allow 80,443,8000/tcp
-sudo ufw --force enable
-
-echo "✅ Setup completed! Upload your program files to /home/radio/programs/"
+# 4. ストリーミング確認
+echo "Chrome/Firefox: http://localhost:8000/stream.ogg"
+echo "Safari: http://localhost:8081/hls/stream.m3u8"
+echo "Web Interface: http://localhost:3000"
 ```
 
-### 番組ファイル配置
-```bash
-# 1時間番組をアップロード
-scp main_program_20241201.flac user@server:/home/radio/programs/
+### Docker Compose設定
+```yaml
+version: '3.8'
+services:
+  hires-radio:
+    build: .
+    ports:
+      - "8000:8000"      # Icecast2 OGG FLAC
+      - "8081:8080"      # HLS ALAC web server
+      - "1234:1234"      # Liquidsoap telnet
+    volumes:
+      - ./programs:/app/programs:ro
+      - ./logs:/var/log/icecast2
+    restart: unless-stopped
 
-# 音質確認
-ffprobe -v quiet -print_format json -show_streams main_program.flac | \
+  web-server:
+    image: node:18-alpine
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+    command: sh -c "npm install express && node server.js"
+    depends_on:
+      - hires-radio
+```
+
+### 音質確認
+```bash
+# FLAC音源確認
+ffprobe -v quiet -print_format json -show_streams programs/your_music.flac | \
   jq '.streams[0] | {sample_rate, bits_per_sample, channels, duration}'
-```
 
-### 起動・運用
-```bash
-# サービス開始
-sudo systemctl start icecast2 nginx
-sudo -u radio liquidsoap /home/radio/scheduled.liq
-pm2 start auth-server.js --name radio-api
-
-# 状態確認
-curl -I https://radio.example.com/stream.flac
-pm2 status
-sudo systemctl status icecast2
+# HLS出力確認
+curl -I http://localhost:8081/hls/stream.m3u8
 ```
 
 ## メリット・特徴
 
-### 録音番組配信のメリット
-- **完璧な音質制御**: 事前マスタリングで最高品質を保証
-- **安定配信**: リアルタイム処理エラーなし
-- **確実なスケジュール**: 番組時間を正確に管理
-- **世界配信対応**: 単一サーバーから全世界へ配信
-- **接続制限**: サインインによる100人制限で品質維持
+### デュアルストリーミングの利点
+- **全ブラウザ対応**: Chrome/Firefox（OGG FLAC）+ Safari（HLS ALAC）
+- **音質維持**: 24bit/96kHz無劣化配信をすべてのブラウザで実現
+- **同期再生**: 単一音源からの同期ライブストリーミング
+- **FIFO効率**: Liquidsoap → ffmpeg リアルタイム変換による低遅延
 
-### 技術的特徴
-- **無劣化配信**: FLAC 24bit/96kHz完全維持
-- **低コスト運用**: 月¥3,100（VPS+ドメイン）
-- **自動管理**: 番組終了で全リスナー自動サインアウト
-- **統計機能**: リスナー地域分布・接続ログ
+### 技術的優位性
+- **コンテナ統合**: Docker環境による一括管理・ポータビリティ
+- **CORS解決**: Safari専用HTTPサーバーによるクロスオリジン対応
+- **プロトコル最適化**: ブラウザ別最適配信方式の自動選択
+- **開発効率**: 統一環境でのテスト・デプロイメント
 
-### セキュリティ・制御
-- **認証必須**: Supabaseメール認証
-- **JWT連携**: Icecast認証システム
-- **時間制限**: 番組時間外はアクセス不可
-- **接続監視**: リアルタイム接続状況管理
+### 配信品質
+- **HLS最適化**: 6秒セグメント・fMP4コンテナによる安定再生
+- **ALAC無劣化**: Safari環境での完全ロスレス音質
+- **OGG FLAC直接**: Chrome/Firefox環境での低遅延直接再生
 
-## 運用コスト
+## 開発環境コスト
 
-| 項目 | 月額費用 | 年額費用 |
-|------|---------|---------|
-| Vultr VPS Tokyo | ¥3,000 | ¥36,000 |
-| ドメイン (.com) | ¥100 | ¥1,200 |
-| Supabase | ¥0 | ¥0 |
-| Cloudflare | ¥0 | ¥0 |
-| SSL証明書 | ¥0 | ¥0 |
-| **合計** | **¥3,100** | **¥37,200** |
+| 項目 | 費用 | 備考 |
+|------|------|------|
+| Docker Desktop | 無料 | 開発環境 |
+| 音源ファイル | 任意 | FLAC 24bit/96kHz |
+| 開発時間 | - | Docker環境自動構築 |
+| **開発コスト** | **¥0** | **完全オープンソース** |
 
-**対応人数**: 100人同時接続  
-**配信地域**: 世界全域  
-**音質**: 完全無劣化FLAC
+**対応ブラウザ**: Chrome, Firefox, Safari  
+**配信方式**: デュアルストリーミング  
+**音質**: 24bit/96kHz 無劣化配信  
+**環境**: Docker統合環境
