@@ -171,6 +171,10 @@
                 });
                 
                 audioElement.addEventListener('error', (e) => {
+                    // Stop時のエラーは無視
+                    if (!audioElement || audioElement.src === '') {
+                        return;
+                    }
                     console.error('Stream error:', e);
                     status.textContent = 'Stream connection failed. Check if Icecast2 is running.';
                     status.className = 'status error';

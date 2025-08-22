@@ -38,7 +38,7 @@ EXPOSE 8000 1234
 RUN echo '#!/bin/bash\n\
 echo "🎵 Starting Hi-Res Radio Docker Container..."\n\
 echo "Checking for FLAC files..."\n\
-if [ -z "$(ls -A /app/programs/*.flac 2>/dev/null)" ]; then\n\
+if [ -z "$(find /app/programs -name '*.flac' 2>/dev/null)" ]; then\n\
     echo "⚠️  No FLAC files found in /app/programs/"\n\
     echo "Please mount your FLAC files to /app/programs volume"\n\
     exit 1\n\
