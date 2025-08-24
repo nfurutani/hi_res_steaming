@@ -11,8 +11,8 @@ set("init.allow_root", true)
 set("server.telnet", true)
 set("server.telnet.port", 1234)
 
-# FLACファイルを無限ループで再生
-source = playlist(mode="randomize", reload=1, "/app/programs/")
+# FLACファイルを無限ループで再生（プレイリストファイル使用）
+source = playlist(mode="normal", reload=1, "/app/playlist.m3u")
 
 # FLACファイルが存在しない場合のフォールバック
 source = fallback(track_sensitive=false, [source, blank()])

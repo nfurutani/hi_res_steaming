@@ -1,0 +1,30 @@
+# 本番用設定
+version: '3.8'
+
+services:
+  hires-radio:
+    environment:
+      - API_HOST=${API_HOST}
+      - ENVIRONMENT=production
+    ports:
+      - "8000:8000"      # Icecast2 OGG FLAC
+      - "8081:8080"      # HLS ALAC web server
+      - "1234:1234"      # Liquidsoap telnet
+    restart: unless-stopped
+    mem_limit: 400m
+    cpus: 0.8
+
+  web-server:
+    ports:
+      - "80:3000"        # 本番環境はport 80でアクセス
+    volumes:
+      - ./index.html:/app/index.html:ro
+      - ./server.js:/app/server.js:ro
+      - ./package.json:/app/package.json:ro
+    environment:
+      - NODE_ENV=production
+      - API_HOST=${API_HOST}
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    mem_limit: 100m
+    cpus: 0.2

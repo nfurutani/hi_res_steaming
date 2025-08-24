@@ -8,11 +8,9 @@
         body {
             font-family: 'Arial', sans-serif;
             margin: 0;
-            padding: 20px;
-            /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
-            /* background: url('assets/chikan.jpg') center center / cover no-repeat; */
-            background: url('assets/KYag.gif') center center / cover no-repeat;
-            height: 100vh;
+            padding: 0;
+            background: #000000;
+            height: 100vh; 
             display: flex;
             align-items: center;
             justify-content: center;
@@ -109,7 +107,7 @@
 </head>
 <body>
     <div class="player">
-        <h1>The Everything For Sale Show</h1>
+        <h1>The Hi-res Streaming Live</h1>
         <div class="subtitle">Live FLAC Stream · 24bit/96kHz</div>
         
         <div class="controls">
@@ -138,8 +136,9 @@
         const status = document.getElementById('status');
         
         // デュアル配信URL
-        const OGG_FLAC_URL = 'http://localhost:8000/stream.ogg';  // Chrome/Firefox
-        const HLS_ALAC_URL = 'http://localhost:8081/hls/stream.m3u8';  // Safari
+        const HOST = window.location.hostname;
+        const OGG_FLAC_URL = `http://${HOST}:8000/stream.ogg`;  // Chrome/Firefox
+        const HLS_ALAC_URL = `http://${HOST}:8081/hls/stream.m3u8`;  // Safari
 
         function initAudio() {
             try {
@@ -198,11 +197,16 @@
                 }).catch(handlePlayError);
             } else if (Hls.isSupported()) {
                 // HLS.js fallback
-                hls = new Hls();
+                hls = new Hls({
+                    debug: false,
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 90
+                });
                 hls.loadSource(HLS_ALAC_URL);
                 hls.attachMedia(audioElement);
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                    setupAudioEvents('🍎 LIVE - HLS ALAC 24bit/96kHz');
+                    setupAudioEvents('🌐 LIVE - HLS ALAC 24bit/96kHz');
                     audioElement.play().then(() => {
                         isPlaying = true;
                         playBtn.disabled = true;

@@ -410,63 +410,60 @@ export default function Player({ url }) {
   # Access-Control-Allow-Origin ヘッダーが出力されるかチェック
  
 ---
+🎉 運用方法改善完了
 
-  アクセス方法
+  新しい運用方法（方針B: --env-file直接指定）
 
-  # Web UI
-  open http://localhost:3000
+  # ローカル開発環境
+  docker-compose --env-file .env.local up -d
 
-  # 直接ストリーム（確認用）
-  curl -I http://localhost:8000/stream.flac
+  # 本番環境  
+  docker-compose --env-file .env.production -f docker-compose.yml -f
+  docker-compose.prod.yml up -d
 
-  # Icecast管理画面
-  open http://localhost:8000/admin/
-  # ユーザー: admin
-  # パスワード: hackme
-
-  ブラウザでの操作
-
-  1. http://localhost:3000 にアクセス
-  2. 「🔊 Listen Live」ボタンをクリック
-  3. 「🔴 LIVE - Synchronized with all listeners」が表示されれば成功
-
-  これでCORSエラーが解決され、ライブストリーミングが視聴できます。
-
+  # 停止
+  docker-compose down
+  
 ---
-  HLSへの移行計画 / 要件確認
+ ローカル開発環境では以下のURLでアクセスできます：
 
-  現状: Liquidsoap + Icecast2 + Ogg FLAC配信（Chrome対応、Safari非対応）
-  目標: Liquidsoap + HLS + ALAC配信（全ブラウザ対応）
+  # Web Interface（メインのプレイヤー画面）
+  http://localhost:3000
+  # または
+  http://localhost:80
 
-  要件定義
-
-  1. 音質: 24bit/96kHz FLAC品質を維持（絶対に劣化させない）
-  2. 形式: HLS + ALAC codec使用
-  3. コンテナ: fMP4形式
-  4. 対応ブラウザ: Safari + Chrome/Firefox対応
-  5. 同期: 全リスナーが同じタイミングで聴く（真の同時配信）
-  6. 実装方針: 方式1 (fMP4で全ブラウザHLS ALAC)
-
-  技術仕様
-
-  - 入力: FLAC 24bit/96kHz
-  - 出力: HLS ALAC 24bit/96kHz (fMP4コンテナ)
-  - セグメント: 6秒間隔、5セグメント保持
-  - 配信: nginx経由、CORS対応
-
+  # 直接ストリーミング（テスト用）
+  http://localhost:8000/stream.ogg  # Chrome/Firefox用 OGG FLAC
+  http://localhost:8081/hls/stream.m3u8  # Safari用 HLS ALAC
+  
 
 
 
   ---
-  HLS ALAC fMP4配信が完全に動作しています！
+ローカル環境での確認手順：
 
-  達成内容
+  # 既存コンテナ停止・削除
+  docker-compose --env-file .env.local down
 
-  - ✅ Liquidsoap: FLAC 24bit/96kHz再生
-  - ✅ FIFOパイプ: /tmp/live.fifo 経由でWAV出力
-  - ✅ ffmpeg: ALAC エンコード + fMP4 HLS生成
-  - ✅ HLSファイル: 正常生成（init.mp4 + stream*.m4s）
+  # リビルド
+  docker-compose --env-file .env.local build --no-cache
 
-  現在の構成
+  # 再起動
+  docker-compose --env-file .env.local up -d
 
-  FLAC音源 → Liquidsoap → FIFO(WAV 24bit/96kHz) → ffmpeg → HLS ALAC fMP4
+  # ログ確認
+  docker-compose --env-file .env.local logs hires-radio
+
+本番サーバーにも同じ修正を適用してください：
+  scp Dockerfile root@45.76.195.103:/root/hi_res_streaming/
+
+  その後、本番サーバーで：
+
+  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml down
+  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+これでサービスが起動し、以下でアクセス可能になります：
+  - Web Interface: http://45.76.195.103 (port 80)
+  - OGG FLAC Stream: http://45.76.195.103:8000/stream.ogg
+  - HLS ALAC Stream: http://45.76.195.103:8081/hls/stream.m3u8

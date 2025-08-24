@@ -1,5 +1,25 @@
 # hi_res_steaming プロジェクト概要
 
+## 🚨 開発ルール（最優先事項）
+
+### 最重要ルール：事実に基づく対応
+**推測での判断・行動は厳禁**：
+1. **事実確認の徹底** - わからないときは必ず調査を実施
+   - ログ確認、ファイル内容確認、実行結果確認
+   - 推測で「〜のはず」と判断しない
+2. **調査による原因特定** - 問題や不明点は調査で特定
+   - `docker logs`、`cat`、`grep`等で実際の状態を確認
+   - 思い込みではなくコードとログから判断
+3. **間違った推測による計画変更の禁止**
+   - 確証がない限り既存の計画を変更しない
+   - 不明な点は明確に「不明」と伝える
+
+### 計画変更時の必須手順
+1. ちゃんとした考えなしで計画を勝手に変更しない
+2. 変更するときは要件を満たせるものかどうか確認する
+3. 変更理由と要件適合性を説明し、承認をとってから進める
+4. ユーザーの既存計画を尊重し、勝手な「ベストプラクティス」適用を避ける
+
 ## プロジェクト目的
 デュアルストリーミング対応ハイレゾライブ配信Webアプリケーション
 - 24bit/96kHz FLAC音源のリアルタイム配信
@@ -219,14 +239,47 @@ cd hi_res_steaming
 mkdir -p programs
 cp your_music.flac programs/
 
-# 3. Docker環境起動
-docker-compose up -d
+# 3. 環境別Docker起動
+# ローカル開発環境
+docker-compose --env-file .env.local up -d
+
+# 本番環境
+docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # 4. ストリーミング確認
 echo "Chrome/Firefox: http://localhost:8000/stream.ogg"
 echo "Safari: http://localhost:8081/hls/stream.m3u8"
-echo "Web Interface: http://localhost:3000"
+echo "Web Interface: http://localhost:3000 (ローカル) / http://localhost:80 (本番)"
 ```
+
+## 環境管理・運用方法
+
+### 環境別起動コマンド
+```bash
+# ローカル開発環境（API_HOST=localhost）
+docker-compose --env-file .env.local up -d
+
+# 本番環境（API_HOST=45.76.195.103）  
+docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# 停止
+docker-compose down
+```
+
+### 環境設定ファイル
+- **`.env.local`**: ローカル開発用環境変数（`API_HOST=localhost`）
+- **`.env.production`**: 本番用環境変数（`API_HOST=45.76.195.103`）
+- **`.env`**: 実行時環境変数（手動管理不要、`--env-file`で自動適用）
+
+### Docker Compose構成
+- **`docker-compose.yml`**: 全環境共通設定
+- **`docker-compose.override.yml`**: ローカル開発用設定（自動適用）
+- **`docker-compose.prod.yml`**: 本番用設定（リソース制限・ポート80）
+
+### 環境切り替えの特徴
+- **安全性**: 手動コピー不要、設定間違いを防止
+- **明示性**: 使用する環境変数ファイルが明確
+- **Git管理**: `.env`ファイルは管理対象外、機密情報の漏洩防止
 
 ### Docker Compose設定
 ```yaml

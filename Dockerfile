@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y \
 # 非rootユーザー作成とHLSディレクトリ作成
 RUN useradd -m -s /bin/bash radio && \
     mkdir -p /etc/icecast2 /var/log/icecast2 /app/programs /var/www/html/hls && \
-    chown -R radio:radio /var/log/icecast2 /app /var/www/html/hls
+    chown -R radio:radio /var/log/icecast2 /app /var/www/html/hls && \
+    chmod 777 /var/log/icecast2
 
 # 作業ディレクトリ作成
 WORKDIR /app
@@ -26,6 +27,9 @@ COPY icecast.xml /etc/icecast2/icecast.xml
 
 # Liquidsoap設定ファイルをコピー
 COPY streaming.liq /app/streaming.liq
+
+# プレイリストファイルをコピー
+COPY playlist.m3u /app/playlist.m3u
 
 # CORS対応HTTPサーバーをコピー
 COPY cors_server.py /app/cors_server.py
@@ -81,13 +85,13 @@ echo "📊 Icecast Admin: http://localhost:8000/admin/"\n\
 echo ""\n\
 \n\
 # プロセス監視とシグナル処理\n\
-trap '\''echo "Stopping services..."; kill $ICECAST_PID $WEB_PID $FFMPEG_PID $LIQUIDSOAP_PID 2>/dev/null; rm -f /tmp/live.fifo; exit 0'\'' INT TERM\n\
+trap '\''echo "Stopping services..."; kill $ICECAST_PID $WEB_PID $FFMPEG_PID $LIQUIDSOAP_PID 2>/dev/null; rm -f /tmp/*.fifo; exit 0'\'' INT TERM\n\
 \n\
 wait\n\
 ' > /app/start.sh && chmod +x /app/start.sh && chown radio:radio /app/start.sh
 
-# radioユーザーに切り替え
-USER radio
+# rootユーザーのまま（icecast2がroot権限を必要とするため）
+# USER radio
 
 # 起動コマンド
 CMD ["/app/start.sh"]

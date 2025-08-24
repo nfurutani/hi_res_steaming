@@ -1,0 +1,11 @@
+# ローカル開発用オーバーライド設定
+version: '3.8'
+
+services:
+  web-server:
+    ports:
+      - "80:3000"  # ローカルではport 80でアクセス
+    volumes:
+      - .:/app
+    environment:
+      - NODE_ENV=development
