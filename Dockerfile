@@ -65,10 +65,17 @@ echo "🎵 Creating FIFO pipe for ALAC..."\n\
 rm -f /tmp/live.fifo\n\
 mkfifo /tmp/live.fifo\n\
 \n\
-echo "🍎 Starting ffmpeg HLS ALAC converter for Safari..."\n\
-ffmpeg -re -i /tmp/live.fifo -c:a alac -f hls \\\n\
-  -hls_segment_type fmp4 -hls_time 6 -hls_list_size 5 \\\n\
-  -hls_playlist_type event /var/www/html/hls/stream.m3u8 2>/dev/null &\n\
+echo "🍎 Starting ffmpeg HLS ALAC converter for Safari with auto-restart..."\n\
+(\n\
+  while true; do\n\
+    ffmpeg -re -i /tmp/live.fifo -c:a alac -f hls \\\n\
+      -hls_segment_type fmp4 -hls_time 6 -hls_list_size 10 \\\n\
+      -hls_flags delete_segments+append_list \\\n\
+      /var/www/html/hls/stream.m3u8 2>/dev/null\n\
+    echo "ffmpeg stopped, restarting in 1 second..." >&2\n\
+    sleep 1\n\
+  done\n\
+) &\n\
 FFMPEG_PID=$!\n\
 \n\
 sleep 5\n\

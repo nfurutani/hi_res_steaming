@@ -1,21 +1,23 @@
 #!/usr/bin/liquidsoap
 
 # ログ設定
-set("log.file.path", "/var/log/icecast2/liquidsoap.log")
-set("log.stdout", true)
+settings.log.file.path.set("/var/log/icecast2/liquidsoap.log")
+settings.log.stdout.set(true)
 
 # セキュリティ設定（Docker内でのみ使用）
-set("init.allow_root", true)
+settings.init.allow_root.set(true)
 
 # サーバー設定
-set("server.telnet", true)
-set("server.telnet.port", 1234)
+settings.server.telnet.set(true)
+settings.server.telnet.port.set(1234)
+settings.server.telnet.bind_addr.set("0.0.0.0")
 
-# FLACファイルを無限ループで再生（プレイリストファイル使用）
-source = playlist(mode="normal", reload=1, "/app/playlist.m3u")
+# FLACファイルを順番再生（プレイリストファイル使用）
+source = playlist(mode="normal", "/app/playlist.m3u")
 
-# FLACファイルが存在しない場合のフォールバック
-source = fallback(track_sensitive=false, [source, blank()])
+# mksafe()でfallibleソースを安全にする
+source = mksafe(source)
+
 
 # デュアル配信: OGG FLAC + ALAC
 # 1. Chrome/Firefox用 OGG FLAC配信（24bit/96kHz）

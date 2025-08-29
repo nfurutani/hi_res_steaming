@@ -98,6 +98,24 @@
             background: #ffebee;
             color: #d32f2f;
         }
+        .now-playing {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .track-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .track-artist, .track-album {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
         .info {
             margin-top: 20px;
             color: #666;
@@ -116,6 +134,14 @@
         </div>
         
         <div class="status loading" id="status">Connecting to stream...</div>
+        
+        <div class="now-playing" id="nowPlaying">
+            <div class="track-info">
+                <div class="track-title" id="trackTitle">♪ Loading...</div>
+                <div class="track-artist" id="trackArtist"></div>
+                <div class="track-album" id="trackAlbum"></div>
+            </div>
+        </div>
         
         <div class="info">
             <div>Live Stream</div>
@@ -292,8 +318,42 @@
         playBtn.addEventListener('click', play);
         stopBtn.addEventListener('click', stop);
 
+        // Now Playing 情報を取得・更新
+        async function updateNowPlaying() {
+            try {
+                const response = await fetch('/api/nowplaying');
+                const data = await response.json();
+                
+                document.getElementById('trackTitle').textContent = `♪ ${data.title}`;
+                document.getElementById('trackArtist').textContent = data.artist;
+                document.getElementById('trackAlbum').textContent = data.album;
+            } catch (error) {
+                console.error('Failed to update now playing:', error);
+                document.getElementById('trackTitle').textContent = '♪ Error loading track info';
+                document.getElementById('trackArtist').textContent = '';
+                document.getElementById('trackAlbum').textContent = '';
+            }
+        }
+
+        // 定期的にNow Playing情報を更新
+        let nowPlayingInterval;
+        function startNowPlayingUpdates() {
+            updateNowPlaying(); // 即座に更新
+            nowPlayingInterval = setInterval(updateNowPlaying, 5000); // 5秒間隔
+        }
+
+        function stopNowPlayingUpdates() {
+            if (nowPlayingInterval) {
+                clearInterval(nowPlayingInterval);
+                nowPlayingInterval = null;
+            }
+        }
+
         // Initialize when page loads
-        window.addEventListener('load', initAudio);
+        window.addEventListener('load', () => {
+            initAudio();
+            startNowPlayingUpdates();
+        });
     </script>
 </body>
 </html>

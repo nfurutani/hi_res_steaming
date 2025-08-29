@@ -163,7 +163,7 @@ export default function Player({ url }) {
   const audioRef = useRef(null);
 
   useEffect(() => {
-    if (Hls.isSupported()) {
+    if (Hls.isSupported()) { 
       const hls = new Hls();
       hls.loadSource(url);
       hls.attachMedia(audioRef.current);
@@ -460,10 +460,34 @@ export default function Player({ url }) {
   その後、本番サーバーで：
 
   docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml down
-  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
-  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d
+  docker-compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 これでサービスが起動し、以下でアクセス可能になります：
   - Web Interface: http://45.76.195.103 (port 80)
   - OGG FLAC Stream: http://45.76.195.103:8000/stream.ogg
   - HLS ALAC Stream: http://45.76.195.103:8081/hls/stream.m3u8
+
+
+曲名が表示されない原因を確認します。
+
+  本番サーバーでの確認コマンド：
+
+  # API確認
+  curl http://45.76.195.103/api/nowplaying
+
+  # telnet接続確認
+  docker exec hires-radio-web nc -zv hires-radio-streaming 1234
+
+  # Liquidsoap telnetサーバー確認
+  docker exec hires-radio-streaming netstat -ltn | grep 1234
+
+  # エラーログ確認
+  docker logs hires-radio-streaming --tail=30 | grep -E "(telnet|server|Error)"
+  docker logs hires-radio-web --tail=30
+
+  考えられる原因：
+  1. telnetサーバーが起動していない
+  2. コンテナ間通信の問題
+  3. Node.js APIのエラー
+
+  どのエラーが出ているか確認が必要です。
